@@ -1,0 +1,141 @@
+#include <IRremote.h>
+//Define Pins
+int redLedPin = 3;
+int blueLedPin = 4;
+int whiteLedPin = 5;
+int pushbuttonPin = 2; // PushButton
+int pushbuttonState = 0;
+
+//Define Remote Control Buttons
+int powerbuttonState = 1; // Button for Power
+// 3 Button to switch on light, 4 button to switch off light
+int lightbuttonState = 0;
+
+//int buttonState3 = 0; //button state remote - 4
+int IR_Recv = 11; // for REMOTE CONTROL
+const int tempPin = A0; // sensor
+const int roomtemp = 20; //set room parameter
+const int numberOfReadings = 10;
+int temperature = 1 ;
+int thermostat = 20;
+
+//IR Library stuff 
+IRrecv irrecv(IR_Recv);
+decode_results results;
+
+float ReadTemperature(int pin) 
+{
+  float analogInAverage = 0;
+  for (int i = 0; i < numberOfReadings; i++)
+  {
+    analogInAverage += analogRead(pin);
+    delay(1);
+  }
+  analogInAverage /= (float)numberOfReadings;
+  float inVoltage = 5.0 * analogInAverage / 1023.0; // equation (2)
+  float temperature = (inVoltage - 0.5) / 0.01; // equation (1
+  return temperature;
+}
+
+void setup()
+{
+  //Set Led Pins
+  pinMode(redLedPin, OUTPUT);
+  pinMode(blueLedPin, OUTPUT);
+  pinMode(whiteLedPin, OUTPUT);
+  pinMode(pushbuttonPin, INPUT);
+  Serial.begin(9600); //starts serial communication
+  irrecv.enableIRIn(); // Starts the receiver
+}
+
+void loop() {
+  {
+    if (powerbuttonState == 1) {
+    
+      float temperature = ReadTemperature(tempPin); 
+      Serial.print(temperature);
+      Serial.println(" degree C");
+      delay(1000); // Wait for 1s before the next reading
+   
+      //********** TURN HEATER ON****************
+      if ((temperature) < thermostat) { //cold
+        digitalWrite(4, LOW);
+        delay(1000);
+        digitalWrite(3, HIGH);
+        Serial.println(" It's Cold, so the heater has been turned on.");
+      }
+    
+      //************* TURN FAN ON************
+      else if ((temperature) > thermostat) {  //hot          
+        digitalWrite(4, HIGH);
+        digitalWrite(3, LOW);
+        Serial.println(" It's Hot, so the fan has been turned on.");
+      }
+   
+     // NO NEED FOR HEATER OR FAN
+      else { //fine
+        digitalWrite(4, LOW);
+        digitalWrite(3, LOW);
+        Serial.println(" It's Fine.");
+      }
+     
+      //************PUSH BUTTON*****************
+      Serial.println(pushbuttonState);
+      pushbuttonState = digitalRead(pushbuttonPin);
+      if (pushbuttonState == HIGH) {
+        digitalWrite(whiteLedPin, HIGH);
+        lightbuttonState = LOW;
+        Serial.println("Light On");
+        Serial.println(pushbuttonState);
+      }
+      else if (pushbuttonState == LOW){
+        if (lightbuttonState == LOW) {
+          digitalWrite(whiteLedPin, LOW);
+          Serial.println("Light Off");
+          Serial.println(pushbuttonState);
+        }
+      }
+      delay(50);
+  
+      //decodes the infrared input
+      if (irrecv.decode(&results)){
+        Serial.println("Remote Control");
+        long int decCode = results.value;
+        Serial.println(results.value);
+       
+        //switch case to use the selected remote control button
+        switch (results.value){
+          case 16599223: //when you press the 3 button
+          digitalWrite(whiteLedPin, HIGH);
+          lightbuttonState = HIGH;
+          Serial.println("The lights have been switched on");
+          break;
+          case 16591063: //when you press the 4 button
+          digitalWrite(whiteLedPin, LOW);
+          lightbuttonState = LOW;
+          Serial.println(" The lights have been switched off");
+          break;
+          case 16613503: //when you press the Vol+ button
+          thermostat++;
+          Serial.println("The temp setting has gone up");
+          Serial.println(thermostat);
+          break;
+          case 16617583: //when you press the Vol- button
+          thermostat = thermostat - 1;
+          Serial.println("The temp setting has gone down");
+          Serial.println(thermostat);
+          break;
+          case 16580863: //when you press the Power button
+          if (powerbuttonState == 1) {
+            powerbuttonState = 0;
+            Serial.println("The Power is going off");
+            Serial.println(powerbuttonState);
+          }
+          else if (powerbuttonState == 0) {
+            powerbuttonState = 1;
+            Serial.println("The Power is coming on");
+            Serial.println(powerbuttonState);
+          }
+          break;
+        }
+        irrecv.resume(); // Receives the next value from the button you press
